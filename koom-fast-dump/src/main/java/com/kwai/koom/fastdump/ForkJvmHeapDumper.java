@@ -23,92 +23,86 @@ package com.kwai.koom.fastdump;
 import static com.kwai.koom.base.Monitor_ApplicationKt.sdkVersionMatch;
 import static com.kwai.koom.base.Monitor_SoKt.loadSoQuietly;
 
-import java.io.IOException;
-
-import android.os.Build;
-import android.os.Debug;
-
-import com.kwai.koom.base.MonitorBuildConfig;
 import com.kwai.koom.base.MonitorLog;
-import com.kwai.koom.base.MonitorManager;
 
 public class ForkJvmHeapDumper implements HeapDumper {
-  private static final String TAG = "OOMMonitor_ForkJvmHeapDumper";
-  private boolean mLoadSuccess;
+    private static final String TAG = "OOMMonitor_ForkJvmHeapDumper";
+    private boolean mLoadSuccess;
 
-  private static class Holder {
-    private static final ForkJvmHeapDumper INSTANCE = new ForkJvmHeapDumper();
-  }
-
-  public static ForkJvmHeapDumper getInstance() {
-    return ForkJvmHeapDumper.Holder.INSTANCE;
-  }
-
-  private ForkJvmHeapDumper() {}
-
-  private void init () {
-    if (mLoadSuccess) {
-      return;
-    }
-    if (loadSoQuietly("koom-fast-dump")) {
-      mLoadSuccess = true;
-      nativeInit();
-    }
-  }
-
-  @Override
-  public synchronized boolean dump(String path) {
-    MonitorLog.i(TAG, "dump " + path);
-    if (!sdkVersionMatch()) {
-      throw new UnsupportedOperationException("dump failed caused by sdk version not supported!");
-    }
-    init();
-    if (!mLoadSuccess) {
-      MonitorLog.e(TAG, "dump failed caused by so not loaded!");
-      return false;
+    private static class Holder {
+        private static final ForkJvmHeapDumper INSTANCE = new ForkJvmHeapDumper();
     }
 
-    boolean dumpRes = false;
-    try {
-      MonitorLog.i(TAG, "before suspend and fork.");
-      int pid = suspendAndFork();
-      if (pid == 0) {
-        // Child process
-        Debug.dumpHprofData(path);
-        exitProcess();
-      } else if (pid > 0) {
-        // Parent process
-        dumpRes = resumeAndWait(pid);
-        MonitorLog.i(TAG, "dump " + dumpRes + ", notify from pid " + pid);
-      }
-    } catch (IOException e) {
-      MonitorLog.e(TAG, "dump failed caused by " + e);
-      e.printStackTrace();
+    public static ForkJvmHeapDumper getInstance() {
+        return ForkJvmHeapDumper.Holder.INSTANCE;
     }
-    return dumpRes;
-  }
 
-  /**
-   * Init before do dump.
-   */
-  private native void nativeInit();
+    private ForkJvmHeapDumper() {
+    }
 
-  /**
-   * Suspend the whole ART, and then fork a process for dumping hprof.
-   *
-   * @return return value of fork
-   */
-  private native int suspendAndFork();
+    private void init() {
+        if (mLoadSuccess) {
+            return;
+        }
+        if (loadSoQuietly("koom-fast-dump")) {
+            mLoadSuccess = true;
+            nativeInit();
+        }
+    }
 
-  /**
-   * Resume the whole ART, and then wait child process to notify.
-   *
-   * @param pid pid of child process.
-   */
-  private native boolean resumeAndWait(int pid);
+    @Override
+    public synchronized boolean dump(String path) {
+        MonitorLog.i(TAG, "dump " + path);
+        if (!sdkVersionMatch()) {
+            throw new UnsupportedOperationException("dump failed caused by sdk version not supported!");
+        }
+        init();
+        if (!mLoadSuccess) {
+            MonitorLog.e(TAG, "dump failed caused by so not loaded!");
+            return false;
+        }
 
-  /**
-   * Exit current process.
-   */
-  private native void exitProcess();
+        boolean dumpRes = false;
+        try {
+            MonitorLog.i(TAG, "before suspend and fork.");
+            int pid = suspendAndFork(path);
+            if (pid == 0) {
+                // Child process
+                //Debug.dumpHprofData(path);
+                exitProcess();
+            } else if (pid > 0) {
+                // Parent process
+                dumpRes = resumeAndWait(pid);
+                MonitorLog.i(TAG, "dump " + dumpRes + ", notify from pid " + pid);
+            }
+        } catch (Exception e) {
+            MonitorLog.e(TAG, "dump failed caused by " + e);
+            e.printStackTrace();
+        }
+        return dumpRes;
+    }
+
+    /**
+     * Init before do dump.
+     */
+    private native void nativeInit();
+
+    /**
+     * Suspend the whole ART, and then fork a process for dumping hprof.
+     *
+     * @return return value of fork
+     */
+    private native int suspendAndFork(String path);
+
+    /**
+     * Resume the whole ART, and then wait child process to notify.
+     *
+     * @param pid pid of child process.
+     */
+    private native boolean resumeAndWait(int pid);
+
+    /**
+     * Exit current process.
+     */
+    private native void exitProcess();
 }

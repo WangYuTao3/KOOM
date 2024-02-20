@@ -60,7 +60,7 @@ void HprofDump::Initialize() {
     resume_vm_fnc_ = (void (*)())kwai::linker::DlFcn::dlsym(
         handle, "_ZN3art3Dbg8ResumeVMEv");
     KFINISHV_FNC(resume_vm_fnc_, DlFcn::dlclose, handle)
-  } else if (android_api_ <= __ANDROID_API_S__) {
+  } else if (android_api_ <= __ANDROID_API_T__) {
     // Over size for device compatibility
     ssa_instance_ = std::make_unique<char[]>(64);
     sgc_instance_ = std::make_unique<char[]>(64);
@@ -95,17 +95,21 @@ void HprofDump::Initialize() {
     exclusive_unlock_fnc_ = (void (*)(void *, void *))DlFcn::dlsym(
         handle, "_ZN3art17ReaderWriterMutex15ExclusiveUnlockEPNS_6ThreadE");
     KFINISHV_FNC(exclusive_unlock_fnc_, DlFcn::dlclose, handle)
+
+    dump_heap_ = (void (*)(const char *, int , bool))DlFcn::dlsym(
+        handle, "_ZN3art5hprof8DumpHeapEPKcib");
+    KFINISHV_FNC(dump_heap_, DlFcn::dlclose, handle)
   }
   DlFcn::dlclose(handle);
   init_done_ = true;
 }
 
-pid_t HprofDump::SuspendAndFork() {
+pid_t HprofDump::SuspendAndFork(char *path) {
   KCHECKI(init_done_)
 
   if (android_api_ < __ANDROID_API_R__) {
     suspend_vm_fnc_();
-  } else if (android_api_ <= __ANDROID_API_S__) {
+  } else if (android_api_ <= __ANDROID_API_T__) {
     void *self = __get_tls()[TLS_SLOT_ART_THREAD_SELF];
     sgc_constructor_fnc_((void *)sgc_instance_.get(), self, kGcCauseHprof,
                          kCollectorTypeHprof);
@@ -120,6 +124,7 @@ pid_t HprofDump::SuspendAndFork() {
     // Set timeout for child process
     alarm(60);
     prctl(PR_SET_NAME, "forked-dump-process");
+    dump_heap_(path, -1, false);
   }
   return pid;
 }
@@ -129,7 +134,7 @@ bool HprofDump::ResumeAndWait(pid_t pid) {
 
   if (android_api_ < __ANDROID_API_R__) {
     resume_vm_fnc_();
-  } else if (android_api_ <= __ANDROID_API_S__) {
+  } else if (android_api_ <= __ANDROID_API_T__) {
     void *self = __get_tls()[TLS_SLOT_ART_THREAD_SELF];
     exclusive_lock_fnc_(*mutator_lock_ptr_, self);
     ssa_destructor_fnc_((void *)ssa_instance_.get());

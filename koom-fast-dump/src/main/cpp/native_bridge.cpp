@@ -34,6 +34,23 @@
 #define LOG_TAG "JNIBridge"
 
 using namespace kwai::leak_monitor;
+char* strToChar(JNIEnv* env, jstring jstr) {
+  char* rtn = NULL;
+  jclass clsstring = env->FindClass("java/lang/String");
+  jstring strencode = env->NewStringUTF("GB2312");
+  jmethodID mid = env->GetMethodID(clsstring, "getBytes",
+                                   "(Ljava/lang/String;)[B");
+  jbyteArray barr = (jbyteArray) env->CallObjectMethod(jstr, mid, strencode);
+  jsize alen = env->GetArrayLength(barr);
+  jbyte* ba = env->GetByteArrayElements(barr, JNI_FALSE);
+  if (alen > 0) {
+    rtn = (char*) malloc(alen + 1);
+    memcpy(rtn, ba, alen);
+    rtn[alen] = 0;
+  }
+  env->ReleaseByteArrayElements(barr, ba, 0);
+  return rtn;
+}
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,8 +66,9 @@ JNIEXPORT void JNICALL Java_com_kwai_koom_fastdump_ForkJvmHeapDumper_nativeInit(
 
 JNIEXPORT jint JNICALL
 Java_com_kwai_koom_fastdump_ForkJvmHeapDumper_suspendAndFork(
-    JNIEnv *env ATTRIBUTE_UNUSED, jobject jobject ATTRIBUTE_UNUSED) {
-  return HprofDump::GetInstance().SuspendAndFork();
+    JNIEnv *env ATTRIBUTE_UNUSED, jobject jobject ATTRIBUTE_UNUSED, jstring path) {
+  char *c = strToChar(env,path);
+  return HprofDump::GetInstance().SuspendAndFork(c);
 }
 
 JNIEXPORT void JNICALL

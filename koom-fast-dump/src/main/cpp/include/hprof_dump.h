@@ -123,7 +123,7 @@ class HprofDump {
  public:
   static HprofDump &GetInstance();
   void Initialize();
-  pid_t SuspendAndFork();
+  pid_t SuspendAndFork(char *path);
   bool ResumeAndWait(pid_t pid);
 
  private:
@@ -166,6 +166,9 @@ class HprofDump {
   void (*exclusive_lock_fnc_)(void *, void *self);
   // art::ReaderWriterMutex::ExclusiveUnlock
   void (*exclusive_unlock_fnc_)(void *, void *self);
+
+  // art::hprof::DumpHeap
+  void (*dump_heap_)(const char *filename, int fd ,bool direct_to_ddms);
 };
 
 }  // namespace leak_monitor
